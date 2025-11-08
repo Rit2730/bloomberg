@@ -1,91 +1,108 @@
 import streamlit as st
 import requests
-import datetime
+import xml.etree.ElementTree as ET
+from datetime import date, timedelta
 
-# ------------------ BASIC APP SETUP ------------------
-st.set_page_config(page_title="Bloomberg Clone", layout="wide")
-st.title("💹 Mini Bloomberg Clone")
-st.markdown("A simplified version of Bloomberg — live news and market summaries in one place!")
+# ------------------ Page & Theme Setup ------------------
+st.set_page_config(page_title="EliteMarket Dashboard", layout="wide")
 
-# ------------------ SIDEBAR ------------------
-st.sidebar.header("Navigation")
-section = st.sidebar.radio("Go to:", ["🏦 Market Overview", "📰 Financial News", "📅 Economic Calendar"])
+# Apply custom CSS for glossy black theme
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #0f0f0f;
+        color: #e0e0e0;
+    }
+    .css-1d391kg {background-color: #0f0f0f;}
+    .css-1v3fvcr {background-color: #1a1a1a;}
+    a {
+        color: #1e90ff;
+    }
+    .stButton>button {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+        border: 1px solid #444;
+    }
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        color: #ffffff;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# ------------------ MARKET OVERVIEW ------------------
-if section == "🏦 Market Overview":
-    st.subheader("📈 Simulated Market Snapshot")
+st.title("EliteMarket Dashboard")
+st.markdown("A professional financial dashboard — black-theme, curated news from top Indian outlets, market snapshots, and more.")
 
-    market_data = [
-        {"Index": "NIFTY 50", "Value": 22850.25, "Change%": +0.42},
-        {"Index": "SENSEX", "Value": 75580.47, "Change%": +0.38},
-        {"Index": "NASDAQ", "Value": 17780.13, "Change%": -0.15},
-        {"Index": "DOW JONES", "Value": 39140.25, "Change%": -0.25},
-        {"Index": "S&P 500", "Value": 5120.52, "Change%": +0.10},
-    ]
+# ------------------ Sidebar Controls ------------------
+with st.sidebar:
+    st.header("Navigation")
+    section = st.radio("Go to:", ["Market Snapshot", "News Feed", "Corporate Announcements"])
+    st.markdown("---")
+    st.subheader("News Settings")
+    news_query = st.text_input("Search topic:", "Indian stock market")
+    num_articles = st.slider("Number of articles", 5, 20, 10)
 
-    st.table(market_data)
-
-    st.markdown("#### 🔍 Market Highlights")
-    st.write("""
-    - Indian markets remain **positive** on the back of strong quarterly earnings.  
-    - Global indices show **mixed trends** due to US inflation concerns.  
-    - Oil prices stabilize as OPEC maintains supply targets.  
-    """)
-
-# ------------------ FINANCIAL NEWS ------------------
-elif section == "📰 Financial News":
-    st.subheader("🗞️ Latest Financial & Economic News")
-
-    query = st.text_input("Search for a topic:", "finance")
-    st.caption("Example: 'stock market', 'RBI policy', 'crude oil', 'inflation'")
-
-    # Use Google News RSS (works without API key)
+# ------------------ News Feed Section ------------------
+if section == "News Feed":
+    st.subheader("📰 Latest News")
+    # Example RSS feed from Economic Times markets section:
+    rss_url = f"https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"  # example Markets feed
     try:
-        rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
-        response = requests.get(rss_url, timeout=5)
+        resp = requests.get(rss_url, timeout=5)
+        root = ET.fromstring(resp.content)
+        items = root.findall(".//item")
+        count = 0
+        for item in items:
+            if count >= num_articles:
+                break
+            title = item.find("title").text
+            link = item.find("link").text
+            pubDate = item.find("pubDate").text
+            description = item.find("description").text if item.find("description") is not None else ""
+            if news_query.lower() in title.lower() or news_query.lower() in description.lower():
+                st.markdown(f"### [{title}]({link})")
+                st.caption(pubDate)
+                st.write(description)
+                st.markdown("— — —")
+                count += 1
+        if count == 0:
+            st.info("No matching articles found for your query. Try changing the topic.")
+    except Exception as e:
+        st.error("Unable to fetch RSS feed. Please check connection or feed URL.")
 
-        if response.status_code == 200:
-            import xml.etree.ElementTree as ET
-            root = ET.fromstring(response.content)
-
-            items = root.findall(".//item")
-            if items:
-                for item in items[:8]:
-                    title = item.find("title").text
-                    link = item.find("link").text
-                    pubDate = item.find("pubDate").text
-                    st.markdown(f"### [{title}]({link})")
-                    st.caption(pubDate)
-            else:
-                st.warning("No articles found. Try another topic.")
-        else:
-            st.error("Unable to fetch news right now.")
-    except Exception:
-        st.warning("Unable to connect to the news server. Please check your internet connection.")
-
-# ------------------ ECONOMIC CALENDAR ------------------
-elif section == "📅 Economic Calendar":
-    st.subheader("📆 Upcoming Global Economic Events")
-
-    today = datetime.date.today()
-    events = [
-        {"Date": today + datetime.timedelta(days=1), "Event": "US CPI Inflation Report", "Impact": "High"},
-        {"Date": today + datetime.timedelta(days=2), "Event": "India GDP Growth Data", "Impact": "High"},
-        {"Date": today + datetime.timedelta(days=3), "Event": "Eurozone Interest Rate Decision", "Impact": "Medium"},
-        {"Date": today + datetime.timedelta(days=4), "Event": "US Initial Jobless Claims", "Impact": "Medium"},
-        {"Date": today + datetime.timedelta(days=5), "Event": "China Manufacturing PMI", "Impact": "High"},
+# ------------------ Market Snapshot Section ------------------
+elif section == "Market Snapshot":
+    st.subheader("📊 Market Snapshot (Simulated / Sample Data)")
+    # Because free live Indian market APIs are limited without paid subscription,
+    # we'll show sample data. You can replace this with your own data source later.
+    data = [
+        {"Index": "Nifty 50", "Value": 23150.45, "Change %": "+0.55%"},
+        {"Index": "Sensex", "Value": 76430.12, "Change %": "+0.48%"},
+        {"Index": "Mid-Cap Index", "Value": 15220.77, "Change %": "-0.12%"},
     ]
+    st.table(data)
+    st.markdown("Use a suitable API to replace with live/real-time index data.")
 
-    st.table(events)
-    st.info("Calendar is auto-generated for demonstration purposes.")
+# ------------------ Corporate Announcements Section ------------------
+elif section == "Corporate Announcements":
+    st.subheader("🏛️ Latest Corporate Announcements from BSE / NSE Listings")
+    # Example: BSE listing announcements page (not structured RSS)
+    st.markdown("Currently showing sample/company-specific announcements. Need a formal API for entire list.")
+    announcements = [
+        {"Date": (date.today() - timedelta(days=1)).isoformat(), "Company": "XYZ Ltd", "Update": "Board meeting scheduled for 12/12/2025"},
+        {"Date": (date.today() - timedelta(days=2)).isoformat(), "Company": "ABC Corp", "Update": "Dividend announced of ₹2/share"},
+    ]
+    st.table(announcements)
 
-# ------------------ FOOTER ------------------
-st.divider()
-st.markdown("""
-**Quick Links**
-- [Moneycontrol](https://www.moneycontrol.com)
-- [Investing.com](https://in.investing.com)
-- [Economic Times Markets](https://economictimes.indiatimes.com/markets)
-""")
-
-st.success("✅ App running successfully — no external installs required!")
+# ------------------ Footer ------------------
+st.markdown("---")
+st.markdown(
+    """
+    **Quick Links**  
+    • [Economic Times Markets](https://economictimes.indiatimes.com/markets)  
+    • [BSE Corporate Announcements](https://www.bseindia.com/corporates/ann.html)  
+    • [National Stock Exchange India](https://www.nseindia.com)  
+    """
+)
