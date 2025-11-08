@@ -1,102 +1,91 @@
 import streamlit as st
-import sys
-import subprocess
-
-# ✅ Auto-install yfinance if missing
-try:
-    import yfinance as yf
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "yfinance"])
-    import yfinance as yf
-
-# ✅ Auto-install other core dependencies if missing
-for pkg in ["plotly", "pandas", "requests", "feedparser"]:
-    try:
-        __import__(pkg)
-    except ModuleNotFoundError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-
-import pandas as pd
-import plotly.express as px
 import requests
-import feedparser
-from datetime import datetime, timedelta
+import datetime
 
+# ------------------ BASIC APP SETUP ------------------
 st.set_page_config(page_title="Bloomberg Clone", layout="wide")
-
-# Title and intro
 st.title("💹 Mini Bloomberg Clone")
-st.markdown("A live financial dashboard with market data, charts, and news updates — built using Streamlit!")
+st.markdown("A simplified version of Bloomberg — live news and market summaries in one place!")
 
-# Sidebar
-st.sidebar.header("Settings")
-st.sidebar.markdown("Use this menu to customize your view.")
+# ------------------ SIDEBAR ------------------
+st.sidebar.header("Navigation")
+section = st.sidebar.radio("Go to:", ["🏦 Market Overview", "📰 Financial News", "📅 Economic Calendar"])
 
-# --- SECTION 1: Market Data ---
-st.subheader("📈 Market Data")
+# ------------------ MARKET OVERVIEW ------------------
+if section == "🏦 Market Overview":
+    st.subheader("📈 Simulated Market Snapshot")
 
-tickers = ["AAPL", "GOOGL", "MSFT", "TSLA", "NIFTY.NS", "BANKNIFTY.NS"]
-selected_ticker = st.selectbox("Select Stock / Index:", tickers)
+    market_data = [
+        {"Index": "NIFTY 50", "Value": 22850.25, "Change%": +0.42},
+        {"Index": "SENSEX", "Value": 75580.47, "Change%": +0.38},
+        {"Index": "NASDAQ", "Value": 17780.13, "Change%": -0.15},
+        {"Index": "DOW JONES", "Value": 39140.25, "Change%": -0.25},
+        {"Index": "S&P 500", "Value": 5120.52, "Change%": +0.10},
+    ]
 
-period = st.selectbox("Select Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"])
-interval = "1d" if period not in ["1d", "5d"] else "30m"
+    st.table(market_data)
 
-try:
-    data = yf.download(selected_ticker, period=period, interval=interval)
-    if not data.empty:
-        data.reset_index(inplace=True)
-        st.write(f"Showing {selected_ticker} data for {period}")
-        fig = px.line(data, x="Date", y="Close", title=f"{selected_ticker} Closing Prices", markers=True)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("No data available for this selection.")
-except Exception as e:
-    st.error(f"Error fetching data: {e}")
+    st.markdown("#### 🔍 Market Highlights")
+    st.write("""
+    - Indian markets remain **positive** on the back of strong quarterly earnings.  
+    - Global indices show **mixed trends** due to US inflation concerns.  
+    - Oil prices stabilize as OPEC maintains supply targets.  
+    """)
 
-# --- SECTION 2: Market Summary ---
-st.subheader("📊 Market Snapshot")
-snapshot = {
-    "Index": ["NIFTY 50", "SENSEX", "NASDAQ", "DOW JONES", "S&P 500"],
-    "Change %": [0.42, 0.38, -0.15, -0.25, 0.10],
-    "Status": ["Up", "Up", "Down", "Down", "Up"]
-}
-snapshot_df = pd.DataFrame(snapshot)
-st.dataframe(snapshot_df, use_container_width=True)
+# ------------------ FINANCIAL NEWS ------------------
+elif section == "📰 Financial News":
+    st.subheader("🗞️ Latest Financial & Economic News")
 
-# --- SECTION 3: Financial & Economic News ---
-st.subheader("📰 Financial & Economic News")
+    query = st.text_input("Search for a topic:", "finance")
+    st.caption("Example: 'stock market', 'RBI policy', 'crude oil', 'inflation'")
 
-NEWSAPI_KEY = st.secrets.get("NEWSAPI_KEY", None)
-query = st.text_input("Search Topic:", "stock market")
+    # Use Google News RSS (works without API key)
+    try:
+        rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+        response = requests.get(rss_url, timeout=5)
 
-def fetch_news(query):
-    if NEWSAPI_KEY:
-        url = f"https://newsapi.org/v2/everything?q={query}&language=en&apiKey={NEWSAPI_KEY}"
-        response = requests.get(url)
         if response.status_code == 200:
-            return response.json().get("articles", [])
-    feed = feedparser.parse(f"https://news.google.com/rss/search?q={query}")
-    return [{"title": e.title, "link": e.link, "publishedAt": e.published} for e in feed.entries[:10]]
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.content)
 
-articles = fetch_news(query)
-if articles:
-    for a in articles[:5]:
-        st.markdown(f"### [{a.get('title')}]({a.get('link')})")
-        if "publishedAt" in a:
-            st.caption(a.get("publishedAt"))
-else:
-    st.warning("No news found. Try a different keyword.")
+            items = root.findall(".//item")
+            if items:
+                for item in items[:8]:
+                    title = item.find("title").text
+                    link = item.find("link").text
+                    pubDate = item.find("pubDate").text
+                    st.markdown(f"### [{title}]({link})")
+                    st.caption(pubDate)
+            else:
+                st.warning("No articles found. Try another topic.")
+        else:
+            st.error("Unable to fetch news right now.")
+    except Exception:
+        st.warning("Unable to connect to the news server. Please check your internet connection.")
 
-# --- SECTION 4: Footer ---
+# ------------------ ECONOMIC CALENDAR ------------------
+elif section == "📅 Economic Calendar":
+    st.subheader("📆 Upcoming Global Economic Events")
+
+    today = datetime.date.today()
+    events = [
+        {"Date": today + datetime.timedelta(days=1), "Event": "US CPI Inflation Report", "Impact": "High"},
+        {"Date": today + datetime.timedelta(days=2), "Event": "India GDP Growth Data", "Impact": "High"},
+        {"Date": today + datetime.timedelta(days=3), "Event": "Eurozone Interest Rate Decision", "Impact": "Medium"},
+        {"Date": today + datetime.timedelta(days=4), "Event": "US Initial Jobless Claims", "Impact": "Medium"},
+        {"Date": today + datetime.timedelta(days=5), "Event": "China Manufacturing PMI", "Impact": "High"},
+    ]
+
+    st.table(events)
+    st.info("Calendar is auto-generated for demonstration purposes.")
+
+# ------------------ FOOTER ------------------
 st.divider()
-st.markdown(
-    """
-    **Quick Economic / Market Links**
-    - [Yahoo Finance](https://finance.yahoo.com)
-    - [Moneycontrol](https://www.moneycontrol.com)
-    - [Investing.com](https://in.investing.com)
-    - [TradingView](https://www.tradingview.com)
-    - [Economic Times Markets](https://economictimes.indiatimes.com/markets)
-    """
-)
-st.info("App created for educational purpose — Mini Bloomberg Clone (© 2025).")
+st.markdown("""
+**Quick Links**
+- [Moneycontrol](https://www.moneycontrol.com)
+- [Investing.com](https://in.investing.com)
+- [Economic Times Markets](https://economictimes.indiatimes.com/markets)
+""")
+
+st.success("✅ App running successfully — no external installs required!")
